@@ -3,7 +3,7 @@
 /* command list 
 */
 static const char *str_cmd_lst[] = {
-	"USER", "PASS", "PORT", "QUIT", "RETR", "SYST", "TYPE",
+	"USER", "PASS", "PASV", "PORT", "QUIT", "RETR", "SYST", "TYPE",
 };
 
 
@@ -46,6 +46,27 @@ int search(char *str, const char **str_lst, int str_len) {
 	return -1;
 }
 
+/* generate port number
+*/
+void gen_port(Port *port_ptr) {
+	srand(time(NULL));
+	port_ptr->p1 = 128 + (rand() % 64);
+	port_ptr->p2 = rand() % 255;
+}
+
+/* get ip addr
+*/
+void get_ipaddr(int sk, int *ipaddr) {
+	socklen_t length;
+	struct sockaddr_in addr;
+	length = sizeof(addr);
+	getsockname(sk, (struct sockaddr *)&addr, &length);
+
+	// store each decimal part of ip address into ipaddr
+	char* host = inet_ntoa(addr.sin_addr);
+ 	sscanf(host,"%d.%d.%d.%d",&ipaddr[0],&ipaddr[1],&ipaddr[2],&ipaddr[3]);
+}
+
 /* handle different commands from client
    @para cmd
    @para status
@@ -62,6 +83,8 @@ void handle_cmds(Command *cmd, Status *status) {
 			handle_cmd_SYST(status); break;
 		case TYPE:
 			handle_cmd_TYPE(cmd->arg, status); break;
+		case PASV:
+			handle_cmd_PASV(status); break;
 		case PORT:
 			handle_cmd_PORT(cmd->arg, status); break;
 		case RETR:
@@ -73,6 +96,11 @@ void handle_cmds(Command *cmd, Status *status) {
 	}
 }
 
+/* connect peer socket 
+   @para hostname
+   @para port number
+   @return created socket connecting to the peer socket
+*/
 int connect_socket(char *hostname, int port) {
 	int sk;
 	struct sockaddr_in peer_skaddr;
@@ -95,9 +123,20 @@ int connect_socket(char *hostname, int port) {
 		printf("Failure on data connection!\n");
 		return -1;
 	}
-
 }
 
+/* accepts a connection
+   @para sk accepts a connection from peer socket
+   @return newly created socket by accept()
+*/
+int accept_conn(int sk) {
+	int data_conn;
+	struct sockaddr_in peer_addr;
+	socklen_t peer_addr_len = sizeof(peer_addr);
+	data_conn = accept(sk, (struct sockaddr*)&(peer_addr), &peer_addr_len);
+
+	return data_conn;
+}
 
 /* creates a socket on specified port number 
    @param port number
@@ -127,7 +166,7 @@ int create_socket(int port) {
 
 	// assign name to created socket
 	if (bind(sk, (struct sockaddr*) &skaddr, sizeof(skaddr)) < 0) {
-		perror("Problem binding");
+		perror("Problem binding.");
 	}
 
 	/* int listen(int sock, int backlog)
@@ -150,7 +189,7 @@ void launch_server(int port) {
 		conn = accept(sk, (struct sockaddr*) &(client_addr), &client_addr_len);
 		if (conn < 0) {
 			//printf("%d\n", conn);
-			perror("Problem accepting");
+			perror("Problem accepting.");
 			continue;
 		}
 

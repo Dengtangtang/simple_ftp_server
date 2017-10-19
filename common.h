@@ -13,6 +13,7 @@
 #include <arpa/inet.h>  /* IP address conversion stuff */
 #include <netdb.h>      /* gethostbyname */
 #include <string.h>
+#include <time.h>
 
 
 #define MAXBUF 1024
@@ -20,7 +21,7 @@
 #define NAMESIZE 32
 
 /* define a enum type for a list of commands */
-typedef enum Cmd_Lst { USER, PASS, PORT, QUIT, RETR, SYST, TYPE } Cmd_lst;
+typedef enum Cmd_Lst { USER, PASS, PASV, PORT, QUIT, RETR, SYST, TYPE } Cmd_lst;
 
 /* enum for mode */
 typedef enum Conn_Mode { NORMAL, PASSIVE, ACTIVE } Conn_mode;
@@ -89,6 +90,9 @@ void cat_msg(char *, char *);
 int search(char *, const char **, int);
 void handle_cmds(Command *, Status *);
 int connect_socket(char *, int);
+int accept_conn(int);
+void gen_port(Port *);
+void get_ipaddr(int, int *);
 
 
 /* commands handling functions */
@@ -98,6 +102,7 @@ void handle_cmd_QUIT(Status *);
 void handle_cmd_SYST(Status *);
 void handle_cmd_TYPE(char *, Status *);
 void handle_cmd_PORT(char *, Status *);
+void handle_cmd_PASV(Status *);
 void handle_cmd_RETR(char *, Status *);
 
 
