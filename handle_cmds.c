@@ -81,7 +81,7 @@ void handle_cmd_PASV(Status *status) {
 		gen_port(port_ptr);
 		server_port = (port_ptr->p1) * 256 + port_ptr->p2;
 		get_ipaddr(status->conn, server_ip_addr);
-		sprintf(bufout, "%d.%d.%d.%d.%d.%d", server_ip_addr[0], server_ip_addr[1], server_ip_addr[2], server_ip_addr[3],
+		sprintf(bufout, "%d,%d,%d,%d,%d,%d", server_ip_addr[0], server_ip_addr[1], server_ip_addr[2], server_ip_addr[3],
 				port_ptr->p1, port_ptr->p2);
 
 		close(status->pasv_sk);
@@ -91,6 +91,8 @@ void handle_cmd_PASV(Status *status) {
 		set_msg(status->message, "227 Entering Passive Mode (");
 		cat_msg(status->message, bufout);
 		cat_msg(status->message, ")\r\n");
+		// printf("%s", status->message);
+		
 	} else {
 		set_msg(status->message, "530 User is not logged in\r\n");
 		perror("530 User is not logged in");
@@ -98,6 +100,7 @@ void handle_cmd_PASV(Status *status) {
 
 	write_msg(status->conn, status->message);
 	free(port_ptr);
+	// printf("%s\n", "Passive mode.");
 }
 
 /* handle PORT cmd */
@@ -116,7 +119,7 @@ void handle_cmd_PORT(char *port_arg, Status *status) {
 			status->mode = ACTIVE;
 			client_port = (port_ptr->p1) * 256 + (port_ptr->p2);
 			// set hostname to client ip addr
-			sprintf(status->hostname,"%d.%d.%d.%d", client_ip_addr[0], client_ip_addr[1], client_ip_addr[2], client_ip_addr[3]);
+			sprintf(status->hostname, "%d.%d.%d.%d", client_ip_addr[0], client_ip_addr[1], client_ip_addr[2], client_ip_addr[3]);
 			// set port_num
 			status->port_num = client_port;
 
@@ -138,6 +141,7 @@ void handle_cmd_PORT(char *port_arg, Status *status) {
    The RETR parameter is an encoded pathname of the file
 */
 void handle_cmd_RETR(char *retr_arg, Status *status) {
+	// printf("%s\n", "download begin...");
 	char bufin[MSGSIZE]; // for retr_arg
 	char bufout[MAXBUF];
 	int fd, data_conn;
@@ -178,12 +182,12 @@ void handle_cmd_RETR(char *retr_arg, Status *status) {
 				set_msg(status->message, "226 File transferred successfully.\r\n");
 				// write_msg(status->port_sk, status->message);
 				// printf("%s\n", "message sent.");
-				write_msg(status->conn, status->message);
+				// write_msg(status->conn, status->message);
 				// printf("%s\n", "message sent.");
 
 				close(status->port_sk);
 				close(fd);
-				return;
+				
 			} else {
 				set_msg(status->message, "550 Permission denied.\r\n");
 			}			
@@ -210,16 +214,15 @@ void handle_cmd_RETR(char *retr_arg, Status *status) {
 				// send data to client
 				memset(bufout, 0, MAXBUF);
 				while ((read_bytes = read(fd, bufout, MAXBUF)) > 0) {
-					write(status->port_sk, bufout, read_bytes);
+					write(data_conn, bufout, read_bytes);
 					memset(bufout, 0, MAXBUF);
 				}
 
 				set_msg(status->message, "226 File transferred successfully.\r\n");
-				write_msg(status->conn, status->message);
+				// write_msg(status->conn, status->message);
 
-				close(status->port_sk);
+				close(data_conn);
 				close(fd);
-				return;
 
 			} else {
 				set_msg(status->message, "550 Permission denied.\r\n");
@@ -235,7 +238,108 @@ void handle_cmd_RETR(char *retr_arg, Status *status) {
 	}
 
 	write_msg(status->conn, status->message);
-	return;
+}
+
+void handle_cmd_STOR(char* stor_arg, Status *status) {
+	// printf("%s\n", "upload begin...");
+	char bufin_dir[MSGSIZE]; // for stor_arg
+	char bufin_data[DATABUFIN]; // for upload data from client
+	int fd, data_conn;
+	int read_bytes = 0;
+
+	if (status->is_logged_in) {
+		// PORT(ACTIVE) mode
+		if (status->mode == ACTIVE) {
+			// connect to client (data connection), get data connection socket for server
+			status->port_sk = connect_socket(status->hostname, status->port_num);
+			if (status->port_sk < 0) {
+				set_msg(status->message, "425 No tcp connection was established.\r\n");
+				write_msg(status->conn, status->message);
+				perror("Problem accepting for data connection.");
+				return;
+			}
+
+			// reply with mask 150
+			set_msg(status->message, "150 opening data connection\r\n");
+			write_msg(status->conn, status->message);
+
+			// get directory
+			set_msg(bufin_dir, stor_arg); 
+			FILE *fp = fopen(bufin_dir, "w");
+			if (fp == NULL) {
+				close(status->port_sk);
+				perror("Problem file opening in file STOR.");
+				set_msg(status->message, "550 File open error in server.\r\n");
+				write_msg(status->conn, status->message);
+				return;
+			}
+
+			// get file descriptor
+			fd = fileno(fp);
+
+			// store data from client
+			memset(bufin_data, 0, DATABUFIN);
+			while ((read_bytes = read(status->port_sk, bufin_data, DATABUFIN))) {
+				write(fd, bufin_data, read_bytes);
+				memset(bufin_data, 0, DATABUFIN);
+			}
+
+			set_msg(status->message, "226 Entire file has been successfully received and stored.\r\n");
+			
+			close(status->port_sk);
+			close(fd);
+			
+		} else if (status->mode == PASSIVE) {
+			data_conn = accept_conn(status->pasv_sk);
+			if (data_conn < 0) {
+				set_msg(status->message, "425 No tcp connection was established.\r\n");
+				write_msg(status->conn, status->message);
+				perror("Problem accepting for data connection.");
+				return;
+			}
+
+			close(status->pasv_sk);
+						
+			// reply with mask 150
+			set_msg(status->message, "150 opening data connection\r\n");
+			write_msg(status->conn, status->message);
+
+			// get directory
+			set_msg(bufin_dir, stor_arg); 
+			FILE *fp = fopen(bufin_dir, "w");
+			if (fp == NULL) {
+				close(status->port_sk);
+				perror("Problem file opening in file STOR.");
+				set_msg(status->message, "550 File open error in server.\r\n");
+				write_msg(status->conn, status->message);
+				return;
+			}
+			
+			// get file descriptor
+			fd = fileno(fp);
+
+			// store data from client
+			memset(bufin_data, 0, DATABUFIN);
+			while ((read_bytes = read(data_conn, bufin_data, DATABUFIN))) {
+				write(fd, bufin_data, read_bytes);
+				memset(bufin_data, 0, DATABUFIN);
+			}
+
+			set_msg(status->message, "226 Entire file has been successfully received and stored.\r\n");
+			
+			close(data_conn);
+			close(fd);
+		
+		} else {
+			set_msg(status->message, "550 Please switch mode to PASV.\r\n");
+		}
+
+	} else {
+		set_msg(status->message, "530 User is not logged in\r\n");
+		perror("530 User is not logged in");
+	}
+
+	write_msg(status->conn, status->message);
 }
 
 

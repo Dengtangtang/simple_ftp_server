@@ -15,13 +15,13 @@
 #include <string.h>
 #include <time.h>
 
-
+#define DATABUFIN 1024*10
 #define MAXBUF 1024
 #define MSGSIZE 256
 #define NAMESIZE 32
 
 /* define a enum type for a list of commands */
-typedef enum Cmd_Lst { USER, PASS, PASV, PORT, QUIT, RETR, SYST, TYPE } Cmd_lst;
+typedef enum Cmd_Lst { USER, PASS, PASV, PORT, QUIT, RETR, STOR, SYST, TYPE } Cmd_lst;
 
 /* enum for mode */
 typedef enum Conn_Mode { NORMAL, PASSIVE, ACTIVE } Conn_mode;
@@ -104,6 +104,7 @@ void handle_cmd_TYPE(char *, Status *);
 void handle_cmd_PORT(char *, Status *);
 void handle_cmd_PASV(Status *);
 void handle_cmd_RETR(char *, Status *);
+void handle_cmd_STOR(char *, Status *);
 
 
 #endif

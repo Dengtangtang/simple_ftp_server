@@ -3,7 +3,7 @@
 /* command list 
 */
 static const char *str_cmd_lst[] = {
-	"USER", "PASS", "PASV", "PORT", "QUIT", "RETR", "SYST", "TYPE",
+	"USER", "PASS", "PASV", "PORT", "QUIT", "RETR", "STOR", "SYST", "TYPE",
 };
 
 
@@ -89,6 +89,8 @@ void handle_cmds(Command *cmd, Status *status) {
 			handle_cmd_PORT(cmd->arg, status); break;
 		case RETR:
 			handle_cmd_RETR(cmd->arg, status); break;
+		case STOR:
+			handle_cmd_STOR(cmd->arg, status); break;
 		default:
 			set_msg(status->message, "500 Unknown commands\n");
 			write_msg(status->conn, status->message);
@@ -186,11 +188,12 @@ void launch_server(int port) {
 
 	while (1) {
 		// create a new file descriptor for accepted socket -- conn here. (origin socket sk is still open for listening)
-		conn = accept(sk, (struct sockaddr*) &(client_addr), &client_addr_len);
+		conn = accept(sk, (struct sockaddr*)&(client_addr), &client_addr_len);
 		if (conn < 0) {
 			//printf("%d\n", conn);
-			perror("Problem accepting.");
-			continue;
+			perror("Problem accepting");
+			// continue;
+			break;
 		}
 
 		/* create child process by fork() to support multi-client,
