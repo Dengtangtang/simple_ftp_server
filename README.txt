@@ -6,4 +6,5 @@ USER, PASS, PASV, PORT, QUIT, RETR, STOR, SYST, TYPE
 Note:
 For USER command: anonymous username for the present
 
-ref: siim/ftp
+ref: 1. https://cr.yp.to/ftp.html
+     2. siim/ftp
